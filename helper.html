@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Initiative Helper</title>
+  <!-- Load the same font families so any choice renders here too -->
+  <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Staatliches&family=PT+Serif&family=Jacquard+12&family=Bokor&family=Dynalight&family=Engagement&family=Trade+Winds&family=Special+Elite&family=Tilt+Prism&family=VT323&family=Jersey+25&family=Oswald&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#000; --fg:#00ff66; --npc:#e33b3b; --font: 'Oswald', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace }
+    html,body{height:100%}
+    body{ margin:0; background:var(--bg); color:var(--fg); font-family: var(--font); display:flex; align-items:center; justify-content:center }
+    .wrap{text-align:center; padding:16px}
+    .current{ font-size:8vw; font-weight:900; letter-spacing:.5px }
+    .npc{ color:var(--npc) }
+    .next{ margin-top:8px; font-size:2.4vw; opacity:.9 }
+  </style>
+</head>
+<body>
+  <!-- If someone accidentally pastes helper.html under initiative.html, keep it invisible and inert -->
+  <script>
+    (function(){ if (document.getElementById('order')) { document.documentElement.classList.add('helper-embedded'); } })();
+  </script>
+  <div id="helperWrap" class="wrap" style="display:none">
+    <div id="cur" class="current">—</div>
+    <div id="next" class="next"></div>
+  </div>
+  <script>
+  (function(){
+    // Abort entirely if embedded on the main page
+    if (document.documentElement.classList.contains('helper-embedded')) return;
+
+    // Reveal only when used standalone (e.g., OBS Browser Source)
+    const wrap = document.getElementById('helperWrap');
+    if (wrap) wrap.style.display = 'block';
+
+    const bc = ('BroadcastChannel' in window) ? new BroadcastChannel('initiative') : null;
+
+    function applyFontFromStorage(){
+      try{
+        const css = localStorage.getItem('it_font');
+        if(css) document.documentElement.style.setProperty('--font', css);
+      }catch{}
+    }
+
+    function applyThemeFromState(s){
+      try{
+        document.documentElement.style.setProperty('--bg', s.bg || getComputedStyle(document.documentElement).getPropertyValue('--bg'));
+        document.documentElement.style.setProperty('--fg', s.fg || getComputedStyle(document.documentElement).getPropertyValue('--fg'));
+        document.documentElement.style.setProperty('--npc', s.npc || getComputedStyle(document.documentElement).getPropertyValue('--npc'));
+      }catch{}
+    }
+
+    function draw(s){
+      applyFontFromStorage();
+      // colors are static; main page doesn't broadcast custom colors anymore
+      const curEl = document.getElementById('cur');
+      const nxtEl = document.getElementById('next');
+      if(s.active && s.order?.length){
+        const cur = s.order[s.currentIndex];
+        if(cur){
+          curEl.textContent = cur.name; curEl.classList.toggle('npc', !cur.pc);
+          const nxtIdx = nextAliveIndex(s, (s.currentIndex+1)%s.order.length);
+          nxtEl.textContent = (nxtIdx>-1) ? `On Deck: ${s.order[nxtIdx].name}` : '';
+        } else { curEl.textContent = '—'; nxtEl.textContent=''; }
+      } else { curEl.textContent = '—'; nxtEl.textContent=''; }
+    }
+
+    function nextAliveIndex(state, start){
+      for(let steps=0; steps<state.order.length; steps++){
+        const idx = (start+steps) % state.order.length;
+        if(!state.order[idx].dead) return idx;
+      }
+      return -1;
+    }
+
+    function get(){ try{ const s = JSON.parse(localStorage.getItem('initiative_state')); if(s) draw(s); }catch{} }
+
+    if(bc){
+      bc.onmessage = (ev)=>{
+        if(ev.data?.type==='state') draw(ev.data.payload);
+        if(ev.data?.type==='font'){ document.documentElement.style.setProperty('--font', ev.data.font); }
+        if(ev.data?.type==='ping') get();
+      };
+      bc.postMessage({type:'ping'});
+    }
+
+    // Poll for both state + font (OBS isolation fallback)
+    setInterval(()=>{ applyFontFromStorage(); get(); }, 1000);
+
+    // Initial paint
+    applyFontFromStorage();
+    get();
+  })();
+  </script>
+</body>
+</html>

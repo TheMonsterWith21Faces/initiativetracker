@@ -1,0 +1,191 @@
+<!-- initiative.html — Main Initiative Tracker Page (fonts-only, simplified)
+  Save this block as initiative.html
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Initiative Tracker v1.1</title>
+  <!-- Load all requested Google Fonts at once -->
+  <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Staatliches&family=PT+Serif&family=Jacquard+12&family=Bokor&family=Dynalight&family=Engagement&family=Trade+Winds&family=Special+Elite&family=Tilt+Prism&family=VT323&family=Jersey+25&family=Oswald&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#0a0a0a; --fg:#00ff66; --accent:#0f2b0f; --npc:#e33b3b; --muted:#355b35; --dead:#666; --font:'Oswald', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace }
+    html,body{height:100%}
+    body{ margin:0; background:var(--bg); color:var(--fg); font-family:var(--font); display:flex; flex-direction:column; gap:16px; padding:20px; box-sizing:border-box }
+    h1{margin:0 0 8px; letter-spacing:1px}
+    .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    select,input[type="text"], input[type="number"], button{ background:transparent; border:1px solid var(--fg); color:var(--fg); padding:10px 12px; border-radius:6px; font-family:inherit; font-size:16px }
+    input::placeholder{color:#6f9f6f}
+    button{cursor:pointer}
+    button:hover{background:var(--accent)}
+    label{display:flex; align-items:center; gap:8px}
+    .panel{display:flex; gap:10px; flex-wrap:wrap}
+    .list{border:1px solid var(--muted); border-radius:12px; overflow:hidden}
+    .list-header{padding:10px 14px; background:#071607; border-bottom:1px dashed var(--muted); font-weight:700}
+    ol{list-style:none; margin:0; padding:0}
+    li{ display:grid; grid-template-columns:28px 1fr 90px 36px; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px dashed var(--muted); background:#061306 }
+    li.drag-over{ outline:2px dashed var(--fg); outline-offset:-2px }
+    .handle{cursor:grab; user-select:none}
+    .name{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .badge{justify-self:start; font-size:12px; padding:2px 6px; border:1px solid var(--fg); border-radius:999px}
+    .npc .name, .npc .badge{ color:var(--npc); border-color:var(--npc) }
+    .dead{ color:var(--dead) }
+    .dead .name{ text-decoration: line-through }
+    .icon-btn{ background:transparent; border:1px solid var(--muted); color:inherit; padding:6px 8px; border-radius:8px }
+    .footer{ margin-top:auto }
+    .current{ margin-top:12px; padding:20px; text-align:center; font-weight:800; font-size:48px; border:1px solid var(--muted); border-radius:16px; background:linear-gradient(180deg, rgba(0,255,102,.08), rgba(0,0,0,0)) }
+    .sub{ font-size:14px; opacity:.8; margin-top:4px }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <h1>▶ INITIATIVE TRACKER v1.1</h1>
+    <div style="margin-left:auto; display:flex; align-items:center; gap:8px">
+      <label>Font:
+        <select id="fontSelect"></select>
+      </label>
+    </div>
+  </div>
+
+  <div class="panel">
+    <input id="name" type="text" placeholder="Name" />
+    <input id="init" type="number" placeholder="Initiative" />
+    <label><input id="isPc" type="checkbox" /> PC</label>
+    <button id="add">ADD</button>
+    <button id="start">START</button>
+    <button id="next">NEXT</button>
+    <button id="stop">STOP</button>
+    <button id="reset">RESET</button>
+  </div>
+
+  <div class="list">
+    <div class="list-header">Round: <span id="round">1</span></div>
+    <ol id="order"></ol>
+  </div>
+
+  <div class="footer">
+    <div id="current" class="current">—</div>
+    <div class="sub" id="nextUp"></div>
+  </div>
+
+  <script>
+  (()=>{
+    // ------- Font List -------
+    const FONTS = [
+      {label:'Bowlby One', css:"'Bowlby One', sans-serif"},
+      {label:'Staatliches', css:"'Staatliches', sans-serif"},
+      {label:'PT Serif', css:"'PT Serif', serif"},
+      {label:'Jacquard 12', css:"'Jacquard 12', cursive"},
+      {label:'Bokor', css:"'Bokor', cursive"},
+      {label:'Dynalight', css:"'Dynalight', cursive"},
+      {label:'Engagement', css:"'Engagement', cursive"},
+      {label:'Trade Winds', css:"'Trade Winds', cursive"},
+      {label:'Special Elite', css:"'Special Elite', monospace"},
+      {label:'Tilt Prism', css:"'Tilt Prism', cursive"},
+      {label:'VT323', css:"'VT323', monospace"},
+      {label:'Jersey 25', css:"'Jersey 25', sans-serif"},
+      {label:'Oswald', css:"'Oswald', sans-serif"}
+    ];
+
+    // ------- State & Sync -------
+    const bc = ('BroadcastChannel' in window) ? new BroadcastChannel('initiative') : null;
+    const state = { active:false, round:1, order:[], currentIndex:-1 };
+    const uid = ()=> Math.random().toString(36).slice(2,9);
+    const persist = ()=> localStorage.setItem('initiative_state', JSON.stringify(state));
+    const load = ()=>{ const raw = localStorage.getItem('initiative_state'); if(!raw) return; try{ Object.assign(state, JSON.parse(raw)); }catch{} };
+    const saveFont = (css)=> localStorage.setItem('it_font', css);
+    const loadFont = ()=> localStorage.getItem('it_font');
+
+    // ------- UI -------
+    const els = {
+      name: document.getElementById('name'), init: document.getElementById('init'), isPc: document.getElementById('isPc'),
+      add: document.getElementById('add'), start: document.getElementById('start'), next: document.getElementById('next'), stop: document.getElementById('stop'), reset: document.getElementById('reset'),
+      order: document.getElementById('order'), round: document.getElementById('round'), current: document.getElementById('current'), nextUp: document.getElementById('nextUp'),
+      fontSelect: document.getElementById('fontSelect')
+    };
+
+    // ------- Font Apply -------
+    function applyFont(css){
+      document.documentElement.style.setProperty('--font', css);
+      saveFont(css);
+      if(bc) bc.postMessage({type:'font', font: css});
+    }
+
+    function populateFontSelect(){
+      els.fontSelect.innerHTML = FONTS.map(f=>`<option value="${f.css.replace(/"/g,'&quot;')}">${f.label}</option>`).join('');
+      const saved = loadFont();
+      const initial = saved || FONTS[FONTS.length-1].css; // default Oswald
+      els.fontSelect.value = initial;
+      applyFont(initial);
+    }
+
+    // ------- Render helpers -------
+    function nextAliveIndex(start){
+      if(!state.order.length) return -1;
+      let i = ((start%state.order.length)+state.order.length)%state.order.length;
+      for(let steps=0; steps<state.order.length; steps++){
+        const idx = (i+steps) % state.order.length;
+        if(!state.order[idx].dead) return idx;
+      }
+      return -1;
+    }
+
+    function render(){
+      els.round.textContent = state.round;
+      els.order.innerHTML = '';
+      state.order.forEach((e,i)=>{
+        const li = document.createElement('li'); li.draggable = true; li.dataset.id = e.id; if(e.dead) li.classList.add('dead'); li.classList.toggle('npc', !e.pc);
+        const handle = Object.assign(document.createElement('div'), {className:'handle', textContent:'≡'});
+        const name = Object.assign(document.createElement('div'), {className:'name', textContent:`${i+1}. ${e.name}`});
+        const badge = Object.assign(document.createElement('div'), {className:'badge', textContent: e.pc ? 'PC' : 'NPC'});
+        const skull = Object.assign(document.createElement('button'), {className:'icon-btn', title:'Toggle dead', textContent: e.dead ? '☠️' : '💀'});
+        skull.onclick = ()=>{ e.dead = !e.dead; if(e.dead && state.currentIndex===i) advance(); render(); persist(); };
+        li.append(handle, name, badge, skull); addDnD(li); els.order.appendChild(li);
+      });
+
+      const cur = state.order[state.currentIndex];
+      if(state.active && cur){
+        els.current.textContent = cur.name; els.current.classList.toggle('npc', !cur.pc);
+        const nxt = nextAliveIndex(state.currentIndex+1); els.nextUp.textContent = (nxt>-1) ? `Next: ${state.order[nxt].name}` : '';
+      } else { els.current.textContent = '—'; els.nextUp.textContent = ''; }
+    }
+
+    // ------- DnD -------
+    let dragId = null;
+    function addDnD(li){
+      li.addEventListener('dragstart', ()=>{ dragId = li.dataset.id; li.style.opacity=.5; });
+      li.addEventListener('dragend', ()=>{ dragId=null; li.style.opacity=''; document.querySelectorAll('.drag-over').forEach(n=>n.classList.remove('drag-over')); persist(); });
+      li.addEventListener('dragover', (e)=>{ e.preventDefault(); li.classList.add('drag-over'); });
+      li.addEventListener('dragleave', ()=> li.classList.remove('drag-over'));
+      li.addEventListener('drop', ()=>{
+        li.classList.remove('drag-over');
+        const from = state.order.findIndex(x=>x.id===dragId);
+        const to = Array.from(els.order.children).indexOf(li);
+        if(from<0||to<0||from===to) return;
+        const [moved] = state.order.splice(from,1); state.order.splice(to,0,moved);
+        if(state.currentIndex===from) state.currentIndex = to; render();
+      });
+    }
+
+    // ------- Events -------
+    function advance(){ if(!state.active) return; if(!state.order.length){ state.currentIndex=-1; render(); return; } const start=(state.currentIndex+1)%state.order.length; const nextIdx=nextAliveIndex(start); if(nextIdx===-1){ state.currentIndex=-1; } else { if(nextIdx<=state.currentIndex) state.round++; state.currentIndex=nextIdx; } }
+
+    els.add.onclick = ()=>{ const name = els.name.value.trim(); const init = Number(els.init.value); if(!name || Number.isNaN(init)) return; state.order.push({ id:uid(), name, init, pc:els.isPc.checked, dead:false }); state.order.sort((a,b)=> b.init - a.init); els.name.value=''; els.init.value=''; els.isPc.checked=false; render(); persist(); if(bc) bc.postMessage({type:'state', payload:state}); };
+    els.start.onclick = ()=>{ if(!state.order.length) return; state.active=true; state.round=state.round||1; state.currentIndex=nextAliveIndex(0); render(); persist(); if(bc) bc.postMessage({type:'state', payload:state}); };
+    els.next.onclick  = ()=>{ advance(); render(); persist(); if(bc) bc.postMessage({type:'state', payload:state}); };
+    els.stop.onclick  = ()=>{ state.active=false; render(); persist(); if(bc) bc.postMessage({type:'state', payload:state}); };
+    els.reset.onclick = ()=>{ Object.assign(state,{ active:false, round:1, order:[], currentIndex:-1 }); render(); persist(); if(bc) bc.postMessage({type:'state', payload:state}); };
+
+    els.fontSelect.onchange = (e)=> applyFont(e.target.value);
+
+    // ------- Init -------
+    load();
+    populateFontSelect();
+    render();
+    setInterval(()=>persist(), 1000); // OBS fallback
+  })();
+  </script>
+</body>
+</html>
+
