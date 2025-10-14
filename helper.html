@@ -43,27 +43,31 @@
       }catch{}
     }
 
-    function applyThemeFromState(s){
-      try{
-        document.documentElement.style.setProperty('--bg', s.bg || getComputedStyle(document.documentElement).getPropertyValue('--bg'));
-        document.documentElement.style.setProperty('--fg', s.fg || getComputedStyle(document.documentElement).getPropertyValue('--fg'));
-        document.documentElement.style.setProperty('--npc', s.npc || getComputedStyle(document.documentElement).getPropertyValue('--npc'));
-      }catch{}
-    }
-
     function draw(s){
       applyFontFromStorage();
-      // colors are static; main page doesn't broadcast custom colors anymore
       const curEl = document.getElementById('cur');
       const nxtEl = document.getElementById('next');
-      if(s.active && s.order?.length){
+      const hasOrder = Array.isArray(s.order) && s.order.length>0;
+      const validIndex = Number.isInteger(s.currentIndex) && s.currentIndex>=0 && hasOrder && s.currentIndex < s.order.length;
+
+      if(s.active && hasOrder && validIndex){
         const cur = s.order[s.currentIndex];
-        if(cur){
-          curEl.textContent = cur.name; curEl.classList.toggle('npc', !cur.pc);
-          const nxtIdx = nextAliveIndex(s, (s.currentIndex+1)%s.order.length);
-          nxtEl.textContent = (nxtIdx>-1) ? `On Deck: ${s.order[nxtIdx].name}` : '';
-        } else { curEl.textContent = '—'; nxtEl.textContent=''; }
-      } else { curEl.textContent = '—'; nxtEl.textContent=''; }
+        curEl.textContent = cur.name; curEl.classList.toggle('npc', !cur.pc);
+        const nxtIdx = nextAliveIndex(s, (s.currentIndex+1)%s.order.length);
+        nxtEl.textContent = (nxtIdx>-1) ? `Next: ${s.order[nxtIdx].name}` : '';
+        window.__lastGood = {cur:cur.name, next:nxtEl.textContent, npc:!cur.pc};
+      } else if (s.active){
+        // Transitional state during writes: keep last good display to prevent blinking
+        if(window.__lastGood){
+          curEl.textContent = window.__lastGood.cur;
+          curEl.classList.toggle('npc', !!window.__lastGood.npc);
+          nxtEl.textContent = window.__lastGood.next || '';
+        }
+      } else {
+        // Not active: clear
+        curEl.textContent = '—';
+        nxtEl.textContent = '';
+      }
     }
 
     function nextAliveIndex(state, start){
@@ -76,8 +80,10 @@
 
     function get(){ try{ const s = JSON.parse(localStorage.getItem('initiative_state')); if(s) draw(s); }catch{} }
 
+    let usedBroadcast = false;
     if(bc){
       bc.onmessage = (ev)=>{
+        usedBroadcast = true;
         if(ev.data?.type==='state') draw(ev.data.payload);
         if(ev.data?.type==='font'){ document.documentElement.style.setProperty('--font', ev.data.font); }
         if(ev.data?.type==='ping') get();
@@ -85,12 +91,22 @@
       bc.postMessage({type:'ping'});
     }
 
-    // Poll for both state + font (OBS isolation fallback)
-    setInterval(()=>{ applyFontFromStorage(); get(); }, 1000);
+    // Poll only if no broadcast seen recently, to reduce flicker
+    setInterval(()=>{ if(!usedBroadcast){ applyFontFromStorage(); get(); } usedBroadcast = false; }, 1000);
 
     // Initial paint
     applyFontFromStorage();
     get();
+
+    // ------- Self-tests (run with #selftest) -------
+    if(location.hash === '#selftest'){
+      const assert = (c,m)=> console[c? 'log':'error'](c?`✅ ${m}`:`❌ ${m}`);
+      const s = {active:true, order:[{name:'A',pc:true,dead:false},{name:'B',pc:false,dead:false}], currentIndex:0};
+      draw(s);
+      assert(document.getElementById('cur').textContent==='A','Helper shows current name');
+      s.currentIndex=1; draw(s);
+      assert(document.getElementById('cur').textContent==='B','Helper switches to next correctly');
+    }
   })();
   </script>
 </body>
