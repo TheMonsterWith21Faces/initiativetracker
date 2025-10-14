@@ -1,7 +1,3 @@
-<!-- initiative.html — Main Initiative Tracker Page (fonts-only, simplified)
-  Save this block as initiative.html
--->
-<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -57,6 +53,7 @@
     <button id="next">NEXT</button>
     <button id="stop">STOP</button>
     <button id="reset">RESET</button>
+    <button id="openHelper">HELPER</button>
   </div>
 
   <div class="list">
@@ -102,7 +99,8 @@
       name: document.getElementById('name'), init: document.getElementById('init'), isPc: document.getElementById('isPc'),
       add: document.getElementById('add'), start: document.getElementById('start'), next: document.getElementById('next'), stop: document.getElementById('stop'), reset: document.getElementById('reset'),
       order: document.getElementById('order'), round: document.getElementById('round'), current: document.getElementById('current'), nextUp: document.getElementById('nextUp'),
-      fontSelect: document.getElementById('fontSelect')
+      fontSelect: document.getElementById('fontSelect'),
+      openHelper: document.getElementById('openHelper')
     };
 
     // ------- Font Apply -------
@@ -177,6 +175,12 @@
     els.stop.onclick  = ()=>{ state.active=false; render(); persist(); if(bc) bc.postMessage({type:'state', payload:state}); };
     els.reset.onclick = ()=>{ Object.assign(state,{ active:false, round:1, order:[], currentIndex:-1 }); render(); persist(); if(bc) bc.postMessage({type:'state', payload:state}); };
 
+    // Open helper.html in a new tab (same folder)
+    els.openHelper.onclick = ()=>{
+      const url = new URL('helper.html', window.location.href).href;
+      window.open(url, '_blank', 'noopener');
+    };
+
     els.fontSelect.onchange = (e)=> applyFont(e.target.value);
 
     // ------- Init -------
@@ -188,4 +192,3 @@
   </script>
 </body>
 </html>
-
