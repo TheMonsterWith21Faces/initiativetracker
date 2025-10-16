@@ -2,7 +2,7 @@
 A simple initiative tracker and OBS-ready viewer page.
 
 Available here:
-<h2>https://themonsterwith21faces.github.io/initiativetracker/initiative</h2>
+<h2>https://themonsterwith21faces.github.io/initiativetracker/index.html</h2>
 
 Legal notice
 
