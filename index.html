@@ -1,3 +1,6 @@
+<!-- initiative.html — Main Initiative Tracker Page (fonts-only, simplified, FIXED)
+  Save this block as initiative.html
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,7 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Initiative Tracker v1.1</title>
   <!-- Load all requested Google Fonts at once -->
-  <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Staatliches&family=PT+Serif&family=Jacquard+12&family=Bokor&family=Dynalight&family=Engagement&family=Trade+Winds&family=Special+Elite&family=Tilt+Prism&family=VT323&family=Jersey+25&family=Oswald&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=PT+Serif&family=Bokor&family=Engagement&family=Special+Elite&family=Tilt+Prism&family=Jersey+25&family=Oswald&family=Limelight&family=Michroma&family=Jim+Nightshade&family=Dot+Gothic+16&family=Rubik+Glitch&family=Bodoni+Moda:opsz@6..96&family=Crimson+Text&family=Metamorphous&family=Fleur+De+Leah&family=Smokum&display=swap" rel="stylesheet">
   <style>
     :root { --bg:#0a0a0a; --fg:#00ff66; --accent:#0f2b0f; --npc:#e33b3b; --muted:#355b35; --dead:#666; --font:'Oswald', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace }
     html,body{height:100%}
@@ -43,6 +46,7 @@
       <label>Font:
         <select id="fontSelect"></select>
       </label>
+      <input type="color" id="fgPicker" value="#00ff66" title="Text color" style="width:36px;height:36px;border:none;background:transparent;cursor:pointer" />
     </div>
   </div>
 
@@ -73,18 +77,23 @@
     // ------- Font List -------
     const FONTS = [
       {label:'Bowlby One', css:"'Bowlby One', sans-serif"},
-      {label:'Staatliches', css:"'Staatliches', sans-serif"},
       {label:'PT Serif', css:"'PT Serif', serif"},
-      {label:'Jacquard 12', css:"'Jacquard 12', cursive"},
       {label:'Bokor', css:"'Bokor', cursive"},
-      {label:'Dynalight', css:"'Dynalight', cursive"},
       {label:'Engagement', css:"'Engagement', cursive"},
-      {label:'Trade Winds', css:"'Trade Winds', cursive"},
       {label:'Special Elite', css:"'Special Elite', monospace"},
       {label:'Tilt Prism', css:"'Tilt Prism', cursive"},
-      {label:'VT323', css:"'VT323', monospace"},
       {label:'Jersey 25', css:"'Jersey 25', sans-serif"},
-      {label:'Oswald', css:"'Oswald', sans-serif"}
+      {label:'Oswald', css:"'Oswald', sans-serif"},
+      {label:'Limelight', css:"'Limelight', serif"},
+      {label:'Michroma', css:"'Michroma', sans-serif"},
+      {label:'Jim Nightshade', css:"'Jim Nightshade', cursive"},
+      {label:'Dot Gothic 16', css:"'Dot Gothic 16', sans-serif"},
+      {label:'Rubik Glitch', css:"'Rubik Glitch', cursive"},
+      {label:'Bodoni Moda', css:"'Bodoni Moda', serif"},
+      {label:'Crimson Text', css:"'Crimson Text', serif"},
+      {label:'Metamorphous', css:"'Metamorphous', cursive"},
+      {label:'Fleur De Leah', css:"'Fleur De Leah', cursive"},
+      {label:'Smokum', css:"'Smokum', cursive"}
     ];
 
     // ------- State & Sync -------
@@ -94,7 +103,9 @@
     const persist = ()=> localStorage.setItem('initiative_state', JSON.stringify(state));
     const load = ()=>{ const raw = localStorage.getItem('initiative_state'); if(!raw) return; try{ Object.assign(state, JSON.parse(raw)); }catch{} };
     const saveFont = (css)=> localStorage.setItem('it_font', css);
+    const saveFg = (c)=> localStorage.setItem('it_fg', c);
     const loadFont = ()=> localStorage.getItem('it_font');
+    const loadFg = ()=> localStorage.getItem('it_fg') || getComputedStyle(document.documentElement).getPropertyValue('--fg').trim() || '#00ff66';
 
     // ------- UI -------
     const els = {
@@ -102,7 +113,8 @@
       add: document.getElementById('add'), start: document.getElementById('start'), next: document.getElementById('next'), stop: document.getElementById('stop'), reset: document.getElementById('reset'),
       order: document.getElementById('order'), round: document.getElementById('round'), current: document.getElementById('current'), nextUp: document.getElementById('nextUp'),
       fontSelect: document.getElementById('fontSelect'),
-      openHelper: document.getElementById('openHelper')
+      openHelper: document.getElementById('openHelper'),
+      fgPicker: document.getElementById('fgPicker')
     };
 
     // ------- Font Apply -------
@@ -110,6 +122,11 @@
       document.documentElement.style.setProperty('--font', css);
       saveFont(css);
       if(bc) bc.postMessage({type:'font', font: css});
+    }
+    function applyFg(color){
+      document.documentElement.style.setProperty('--fg', color);
+      saveFg(color);
+      if(bc) bc.postMessage({type:'fg', fg: color});
     }
 
     function populateFontSelect(){
@@ -149,7 +166,7 @@
       const cur = state.order[state.currentIndex];
       if(state.active && cur){
         els.current.textContent = cur.name; els.current.classList.toggle('npc', !cur.pc);
-        const nxt = nextAliveIndex(state.currentIndex+1); els.nextUp.textContent = (nxt>-1) ? `Next: ${state.order[nxt].name}` : '';
+        const nxt = nextAliveIndex(state.currentIndex+1); els.nextUp.textContent = (nxt>-1) ? `On-Deck: ${state.order[nxt].name}` : '';
       } else { els.current.textContent = '—'; els.nextUp.textContent = ''; }
     }
 
@@ -186,10 +203,14 @@
     };
 
     els.fontSelect.onchange = (e)=> applyFont(e.target.value);
+    els.fgPicker.oninput = (e)=> applyFg(e.target.value);
 
     // ------- Init -------
     load();
     populateFontSelect();
+    const initColor = loadFg();
+    els.fgPicker.value = initColor.startsWith('#') ? initColor : '#00ff66';
+    applyFg(els.fgPicker.value);
     render();
     setInterval(()=>persist(), 1000); // OBS fallback
 
@@ -208,8 +229,12 @@
       state.active=true; state.currentIndex=0; render();
       const firstLi = document.querySelector('li');
       assert(firstLi && firstLi.classList.contains('current-turn'), 'Current turn highlighted');
+      // Test: On-Deck label when next exists
+      const onDeck = document.getElementById('nextUp').textContent || '';
+      assert(onDeck.startsWith('On-Deck:'), 'On-Deck label shown');
     }
   })();
   </script>
 </body>
 </html>
+

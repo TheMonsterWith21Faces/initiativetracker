@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Initiative Helper</title>
   <!-- Load the same font families so any choice renders here too -->
-  <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Staatliches&family=PT+Serif&family=Jacquard+12&family=Bokor&family=Dynalight&family=Engagement&family=Trade+Winds&family=Special+Elite&family=Tilt+Prism&family=VT323&family=Jersey+25&family=Oswald&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=PT+Serif&family=Bokor&family=Engagement&family=Special+Elite&family=Tilt+Prism&family=Jersey+25&family=Oswald&family=Limelight&family=Michroma&family=Jim+Nightshade&family=Dot+Gothic+16&family=Rubik+Glitch&family=Bodoni+Moda:opsz@6..96&family=Crimson+Text&family=Metamorphous&family=Fleur+De+Leah&family=Smokum&display=swap" rel="stylesheet">
   <style>
     :root { --bg:#000; --fg:#00ff66; --npc:#e33b3b; --font: 'Oswald', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace }
     html,body{height:100%}
-    body{ margin:0; background:var(--bg); color:var(--fg); font-family: var(--font); display:flex; align-items:center; justify-content:center }
+    body{ margin:0; background:var(--bg); color:var(--fg); font-family: var(--font); display:flex; align-items:top; justify-content:center }
     .wrap{text-align:center; padding:16px}
-    .current{ font-size:8vw; font-weight:900; letter-spacing:.5px }
+    .current{ font-size:8vw; font-weight:500; letter-spacing:.5px }
     .npc{ color:var(--npc) }
     .next{ margin-top:8px; font-size:2.4vw; opacity:.9 }
   </style>
@@ -42,6 +42,12 @@
         if(css) document.documentElement.style.setProperty('--font', css);
       }catch{}
     }
+    function applyFgFromStorage(){
+      try{
+        const c = localStorage.getItem('it_fg');
+        if(c) document.documentElement.style.setProperty('--fg', c);
+      }catch{}
+    }
 
     function draw(s){
       applyFontFromStorage();
@@ -54,7 +60,7 @@
         const cur = s.order[s.currentIndex];
         curEl.textContent = cur.name; curEl.classList.toggle('npc', !cur.pc);
         const nxtIdx = nextAliveIndex(s, (s.currentIndex+1)%s.order.length);
-        nxtEl.textContent = (nxtIdx>-1) ? `Next: ${s.order[nxtIdx].name}` : '';
+        nxtEl.textContent = (nxtIdx>-1) ? `On-Deck: ${s.order[nxtIdx].name}` : '';
         window.__lastGood = {cur:cur.name, next:nxtEl.textContent, npc:!cur.pc};
       } else if (s.active){
         // Transitional state during writes: keep last good display to prevent blinking
@@ -79,6 +85,13 @@
     }
 
     function get(){ try{ const s = JSON.parse(localStorage.getItem('initiative_state')); if(s) draw(s); }catch{} }
+    window.addEventListener('storage', (e)=>{
+      if(e.key==='initiative_state' || e.key==='it_font' || e.key==='it_fg'){
+        applyFontFromStorage();
+        applyFgFromStorage();
+        get();
+      }
+    });
 
     let usedBroadcast = false;
     if(bc){
@@ -86,13 +99,14 @@
         usedBroadcast = true;
         if(ev.data?.type==='state') draw(ev.data.payload);
         if(ev.data?.type==='font'){ document.documentElement.style.setProperty('--font', ev.data.font); }
+        if(ev.data?.type==='fg'){ document.documentElement.style.setProperty('--fg', ev.data.fg); }
         if(ev.data?.type==='ping') get();
       };
       bc.postMessage({type:'ping'});
     }
 
     // Poll only if no broadcast seen recently, to reduce flicker
-    setInterval(()=>{ if(!usedBroadcast){ applyFontFromStorage(); get(); } usedBroadcast = false; }, 1000);
+    setInterval(()=>{ if(!usedBroadcast){ applyFontFromStorage(); applyFgFromStorage(); get(); } usedBroadcast = false; }, 500);
 
     // Initial paint
     applyFontFromStorage();
