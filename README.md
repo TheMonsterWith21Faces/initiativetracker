@@ -1,5 +1,5 @@
 # initiativetracker
-A simple initiative tracker and OBS-ready viewer page.
+I know there's other initiative trackers out there but I found them to be overly complicated when I only needed simple info tracked. also this is ready for OBS so that's nice.
 
 Available here:
 <h2>https://themonsterwith21faces.github.io/initiativetracker/index.html</h2>
